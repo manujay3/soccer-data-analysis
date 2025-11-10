@@ -206,5 +206,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# project files
+# Ignore the configuration file with credentials
 directory.py
+
+# Ignore the downloaded Kaggle data folder
+/kaggle_data/
+
+# Ignore Mac system files
+.DS_Store
