@@ -21,10 +21,10 @@
 12727 - carabao cup final
 12728 - carabao cup semifinals
 12729 - carabao cup quarterfinals
-12730 - fa cup fourth round
-12731 - fa cup third round
-12732 - fa cup second round
-12733 - fa cup first round
+12730 - carabao cup fourth round
+12731 - carabao cup third round
+12732 - carabao cup second round
+12733 - carabao cup first round
 
 12881 - ucl final
 12882 - ucl semifinals
@@ -91,3 +91,9 @@
 12610 - german cup round of 16
 12611 - german cup second round
 12612 - german cup first round
+
+13052 - club world cup final
+13053 - club world cup semifinal
+13054 - club world cup quarterfinal
+13055 - club world cup round of 16
+13056 - club world cup group stage
