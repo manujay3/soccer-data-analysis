@@ -1,63 +1,76 @@
-CREATE OR REPLACE VIEW english_top_flight AS
-SELECT "eventId", "matchDate", "HomeTeam", "AwayTeam", "HomeTeamScore", "AwayTeamScore", 'Premier League' AS Competition
-FROM "2024_25_english_premier_league_fixtures"
+CREATE OR REPLACE VIEW coupedefrance_fixtures AS
+SELECT * FROM "2024_25_coupe_de_france__round_of_64_fixtures"
 UNION ALL
-SELECT "eventId", "matchDate", "HomeTeam", "AwayTeam", "HomeTeamScore", "AwayTeamScore", 'FA Cup' AS Competition
-FROM fa_cup_fixtures
+SELECT * FROM "2024_25_coupe_de_france__round_of_32_fixtures"
 UNION ALL
-SELECT "eventId", "matchDate", "HomeTeam", "AwayTeam", "HomeTeamScore", "AwayTeamScore", 'EFL Cup' AS Competition
-FROM efl_cup_fixtures;
+SELECT * FROM "2024_25_coupe_de_france__round_of_16_fixtures"
+UNION ALL
+SELECT * FROM "2024_25_coupe_de_france__quarterfinals_fixtures"
+UNION ALL
+SELECT * FROM "2024_25_coupe_de_france__semifinals_fixtures"
+UNION ALL
+SELECT * FROM "2024_25_coupe_de_france__final_fixtures";
+
+
+
+CREATE OR REPLACE VIEW french_top_flight AS
+SELECT "eventId", "matchDate", "HomeTeam", "AwayTeam", "HomeTeamScore", "AwayTeamScore", 'Ligue 1' AS Competition
+FROM "2024_25_ligue_1_fixtures"
+UNION ALL
+SELECT "eventId", "matchDate", "HomeTeam", "AwayTeam", "HomeTeamScore", "AwayTeamScore", 'Coupe De France' AS Competition
+FROM coupedefrance_fixtures
+UNION ALL
+SELECT "eventId", "matchDate", "HomeTeam", "AwayTeam", "HomeTeamScore", "AwayTeamScore", 'French Super Cup' AS Competition
+FROM "2024_french_super_cup_fixtures";
 
 
 SELECT
-    * FROM english_top_flight
+    * FROM french_top_flight
 WHERE
-    "HomeTeam" IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
-  OR "AwayTeam" IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings");
+    "HomeTeam" IN (SELECT "displayName" FROM "2024_25_ligue_1_standings")
+   OR "AwayTeam" IN (SELECT "displayName" FROM "2024_25_ligue_1_standings");
 
 
--- SELECT * FROM english_top_flight INNER JOIN "2024_25_english_premier_league_plays_data" ON english_top_flight."eventId" = "2024_25_english_premier_league_plays_data"."eventId";
--- SELECT * FROM english_top_flight INNER JOIN "2024_25_english_fa_cup__plays_data" ON english_top_flight."eventId" = "2024_25_english_fa_cup__plays_data"."eventId";
--- SELECT * FROM english_top_flight INNER JOIN "2024_25_english_carabao_cup__plays_data" ON english_top_flight."eventId" = "2024_25_english_carabao_cup__plays_data"."eventId";
---          WHERE  "playDescription" LIKE 'Goal%' OR "playDescription" LIKE 'Penalty%';
 
-DROP VIEW IF EXISTS v_english_plays_data CASCADE;
-CREATE OR REPLACE VIEW v_english_plays_data AS
+
+DROP VIEW IF EXISTS v_french_plays_data CASCADE;
+CREATE OR REPLACE VIEW v_french_plays_data AS
+    --
 --
--- Premier League
-SELECT *, 'Premier League' AS Competition
-FROM "2024_25_english_premier_league_plays_data" UNION ALL
--- FA Cup
-SELECT *, 'FA Cup' AS Competition
-FROM "2024_25_english_fa_cup__plays_data" UNION ALL
--- EFL Cup
-SELECT *, 'EFL Cup' AS Competition
-FROM "2024_25_english_carabao_cup__plays_data";
+SELECT *, 'Ligue 1' AS Competition
+FROM "2024_25_ligue_1_plays_data" UNION ALL
+--
+SELECT *, 'Coupe De France' AS Competition
+FROM "2024_25_coupe_de_france__plays_data" UNION ALL
+--
+SELECT *, 'French Super Cup' AS Competition
+FROM "2024_french_super_cup_plays_data";
 
+-- list of goals
 SELECT *
 FROM
-    english_top_flight
+    french_top_flight
         INNER JOIN
-    v_english_plays_data
-    ON english_top_flight."eventId" = v_english_plays_data."eventId"
+    v_french_plays_data
+    ON french_top_flight."eventId" = french_top_flight."eventId"
 WHERE
-    ("HomeTeam" IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
-   OR "AwayTeam" IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings"))
+    ("HomeTeam" IN (SELECT "displayName" FROM "2024_25_ligue_1_standings")
+        OR "AwayTeam" IN (SELECT "displayName" FROM "2024_25_ligue_1_standings"))
   AND ("playDescription" LIKE 'Goal%' OR "playDescription" LIKE 'Penalty - Scored') AND
-      team in (SELECT "displayName" FROM "2024_25_english_premier_league_standings");
+    team in (SELECT "displayName" FROM "2024_25_ligue_1_standings");
 
 
 
--- deadliest duos in 24/25 english top-flight football
+-- deadliest duos in 24/25  top-flight football
 SELECT
     "participant" as Scorer,
     "Assister" as Assister,
     "team",
     COUNT(*) as goal_count
-FROM v_english_plays_data
+FROM v_french_plays_data
 WHERE "playDescription" LIKE 'Goal%'
   AND "Assister" IS NOT NULL
-  AND "team" IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+  AND "team" IN (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 GROUP BY "participant", "Assister", "team"
 ORDER BY goal_count DESC
 LIMIT 10;
@@ -66,10 +79,10 @@ LIMIT 10;
 SELECT
     team,
     COUNT(*) as stoppage_time_goals
-FROM v_english_plays_data
+FROM v_french_plays_data
 WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" LIKE 'Penalty - Scored')
   AND ("clockDisplayValue" LIKE '90%') AND
-    team in (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+    team in (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 GROUP BY team
 ORDER BY stoppage_time_goals DESC;
 
@@ -78,9 +91,9 @@ SELECT
     "participant" as Player,
     "team",
     COUNT(*) as YellowCards
-FROM v_english_plays_data
+FROM v_french_plays_data
 WHERE "playDescription" LIKE 'Yellow Card%' AND
-    team in (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+    team in (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 GROUP BY "participant", "team"
 Order BY YellowCards DESC
 LIMIT 10;
@@ -90,9 +103,9 @@ SELECT
     "participant" as Player,
     "team",
     COUNT(*) as RedCards
-FROM v_english_plays_data
+FROM v_french_plays_data
 WHERE "playDescription" LIKE 'Red Card%' AND
-    team in (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+    team in (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 GROUP BY "participant", "team"
 Order BY RedCards DESC
 LIMIT 10;
@@ -116,8 +129,8 @@ SELECT
             ELSE 0
         END) AS Home_Points
 
-FROM english_top_flight
-WHERE english_top_flight.Competition = 'Premier League'
+FROM french_top_flight
+WHERE french_top_flight.Competition = 'Ligue 1'
 GROUP BY "HomeTeam"
 ORDER BY Home_Points DESC, Home_Goal_Difference DESC;
 
@@ -140,12 +153,12 @@ SELECT
             ELSE 0
         END) AS Away_Points
 
-FROM english_top_flight
-WHERE english_top_flight.Competition = 'Premier League'
+FROM french_top_flight
+WHERE french_top_flight.Competition = 'Ligue 1'
 GROUP BY "AwayTeam"
 ORDER BY Away_Points DESC, Away_Goal_Difference DESC;
 
-
+-- goal involvement
 WITH Combined_Stats AS (
     -- 1. Get the Goals (Credit the 'participant')
     SELECT
@@ -153,7 +166,7 @@ WITH Combined_Stats AS (
         team,
         1 AS Goals,
         0 AS Assists
-    FROM v_english_plays_data
+    FROM v_french_plays_data
     WHERE "playDescription" LIKE 'Goal%' OR "playDescription" = 'Penalty - Scored'
 
     UNION ALL
@@ -164,7 +177,7 @@ WITH Combined_Stats AS (
         team,
         0 AS Goals,
         1 AS Assists
-    FROM v_english_plays_data
+    FROM v_french_plays_data
     WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" = 'Penalty - Scored')
       AND "Assister" IS NOT NULL
 ),
@@ -196,30 +209,31 @@ SELECT
     ROUND((Total_Involvements * 100.0 / Team_Goals_Count), 1) AS "Involvement_%"
 FROM Aggregated_Stats
 WHERE rank = 1
-  AND team IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+  AND team IN (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 ORDER BY "Involvement_%" DESC;
 
+--super sub
 SELECT
     s."participant" AS "Super_Sub_Name",
     s.team,
     COUNT(g."eventId") AS "Goals_From_Bench"
-    --STRING_AGG(DISTINCT s."clockDisplayValue", ', ') AS "Subbed_In_Time",
-    --STRING_AGG(g."clockDisplayValue", ', ') AS "Goal_Times"
+
 FROM
-    v_english_plays_data s  JOIN v_english_plays_data g -- The Goal Event
-    ON s."eventId" = g."eventId"           -- Same Match
-        AND s."participant" = g."participant"  -- Same Player
+    v_french_plays_data s  JOIN v_french_plays_data g -- The Goal Event
+                                 ON s."eventId" = g."eventId"           -- Same Match
+                                     AND s."participant" = g."participant"  -- Same Player
 WHERE
     s."playDescription" LIKE '%Substitution%'
   AND (g."playDescription" LIKE 'Goal%' OR g."playDescription" = 'Penalty - Scored')
   AND g."playId" > s."playId"
-  AND s.team IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+  AND s.team IN (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 GROUP BY
     s."participant", s.team
 ORDER BY
     "Goals_From_Bench" DESC
 LIMIT 10;
 
+--decisive goals
 WITH Goal_Context AS (
     SELECT
         p."participant",
@@ -229,10 +243,10 @@ WITH Goal_Context AS (
         m."AwayTeamScore" AS Final_Away,
         COALESCE(SUM(CASE WHEN p.team = m."HomeTeam" THEN 1 ELSE 0 END) OVER (PARTITION BY p."eventId" ORDER BY p."playId" ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS Home_Pre,
         COALESCE(SUM(CASE WHEN p.team = m."AwayTeam" THEN 1 ELSE 0 END) OVER (PARTITION BY p."eventId" ORDER BY p."playId" ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS Away_Pre
-    FROM v_english_plays_data p
-             JOIN english_top_flight m ON p."eventId" = m."eventId"
+    FROM v_french_plays_data p
+             JOIN french_top_flight m ON p."eventId" = m."eventId"
     WHERE (p."playDescription" LIKE 'Goal%' OR p."playDescription" = 'Penalty - Scored')
-      AND p.team IN (SELECT "displayName" FROM "2024_25_english_premier_league_standings")
+      AND p.team IN (SELECT "displayName" FROM "2024_25_ligue_1_standings")
 )
 
 SELECT
