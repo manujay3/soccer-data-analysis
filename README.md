@@ -74,6 +74,7 @@
 12970 - italian supercoppa semifinals
 
 12586 - french super cup
+12621 - german super cup
 
 13419 - franz beckenbauer supercup
 
@@ -97,3 +98,6 @@
 13054 - club world cup quarterfinal
 13055 - club world cup round of 16
 13056 - club world cup group stage
+
+12753
+12752
