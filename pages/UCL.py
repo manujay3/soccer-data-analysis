@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from directory import db_connection_str
+db_connection_str = st.secrets["db_connection_str"]
 import plotly.express as px
 import numpy as np
 

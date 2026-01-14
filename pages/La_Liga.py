@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
-from directory import db_connection_str
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+db_connection_str = st.secrets["db_connection_str"]
 import plotly.express as px
 import numpy as np
 
