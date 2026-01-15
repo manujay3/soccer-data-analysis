@@ -1,9 +1,5 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine
-import sys
-import os
-db_connection_str = st.secrets["db_connection_str"]
 import plotly.express as px
 import numpy as np
 
@@ -13,10 +9,14 @@ import numpy as np
 PAGE_TITLE = "2024/25 FIFA Club World Cup Analytics"
 PLAYS_TABLE = "v_cwc_plays_data"
 MATCHES_TABLE = "cwc_top_flight"
+# ⚠️ Using the exact name from your snippet
 STANDINGS_TABLE = '"2025_FIFA_Club_World_Cup_standings"'
 
-# --- SETUP & CSS ---
-db_connection = create_engine(db_connection_str)
+st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+
+# --- DATABASE CONNECTION (NEW) ---
+# Uses [connections.supabase] from .streamlit/secrets.toml
+conn = st.connection("supabase", type="sql")
 
 st.markdown(
     """
@@ -35,24 +35,22 @@ st.markdown(
 # ==========================================
 # SIDEBAR FILTER
 # ==========================================
-# 1. Get unique teams
 team_list_query = f"""
 SELECT DISTINCT "displayName"
 FROM {STANDINGS_TABLE}
 ORDER BY "displayName";
 """
-df_teams = pd.read_sql(team_list_query, db_connection)
+# Cache for 1 hour
+df_teams = conn.query(team_list_query, ttl=3600)
 unique_teams = df_teams['displayName'].tolist()
 
-# 2. Sidebar Dropdown
 st.sidebar.header("Dashboard Filters")
 selected_team = st.sidebar.selectbox("Select a Team:", ["All Teams"] + unique_teams)
 
-# 3. Create helper string for SQL queries
 if selected_team == "All Teams":
-    team_filter = f'SELECT "displayName" FROM {STANDINGS_TABLE}'
+    team_filter_clause = ""
 else:
-    team_filter = f"'{selected_team}'"
+    team_filter_clause = f"AND team = '{selected_team}'"
 
 st.title(PAGE_TITLE)
 
@@ -61,46 +59,46 @@ st.title(PAGE_TITLE)
 # ==========================================
 st.divider()
 
-# --- ROW 1: OFFENSE QUERIES ---
+# --- ROW 1: OFFENSE ---
 
 # 1. Top Scorer
 top_scorer_query = f"""
 SELECT "participant", COUNT(*) as goals
 FROM {PLAYS_TABLE}
-WHERE "playDescription" LIKE 'Goal%%'
-  AND team IN ({team_filter})
+WHERE "playDescription" LIKE 'Goal%'
+  {team_filter_clause}
 GROUP BY "participant"
 ORDER BY goals DESC
 LIMIT 1;
 """
-df_top_scorer = pd.read_sql(top_scorer_query, db_connection)
+df_top_scorer = conn.query(top_scorer_query, ttl=600)
 
 # 2. Top Assister
 top_assist_query = f"""
 SELECT "Assister", COUNT(*) as assists
 FROM {PLAYS_TABLE}
-WHERE ("playDescription" LIKE 'Goal%%' OR "playDescription" = 'Penalty - Scored')
+WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" = 'Penalty - Scored')
   AND "Assister" IS NOT NULL
-  AND team IN ({team_filter})
+  {team_filter_clause}
 GROUP BY "Assister"
 ORDER BY assists DESC
 LIMIT 1;
 """
-df_top_assist = pd.read_sql(top_assist_query, db_connection)
+df_top_assist = conn.query(top_assist_query, ttl=600)
 
 # 3. Best Offense
 top_team_query = f"""
 SELECT team as "Team", COUNT(*) as goals
 FROM {PLAYS_TABLE}
-WHERE "playDescription" LIKE 'Goal%%'
-  AND team IN ({team_filter})
+WHERE "playDescription" LIKE 'Goal%'
+  {team_filter_clause}
 GROUP BY team
 ORDER BY goals DESC
 LIMIT 1;
 """
-df_top_team = pd.read_sql(top_team_query, db_connection)
+df_top_team = conn.query(top_team_query, ttl=600)
 
-# --- ROW 2: DEFENSE QUERIES ---
+# --- ROW 2: DEFENSE ---
 
 # 4. Most Clean Sheets
 clean_sheet_query = f"""
@@ -110,36 +108,35 @@ FROM (
     UNION ALL
     SELECT "AwayTeam" as team FROM {MATCHES_TABLE} WHERE "HomeTeamScore" = 0
 ) as cs
-WHERE team IN ({team_filter})
 GROUP BY team
 ORDER BY clean_sheets DESC
 LIMIT 1;
 """
-df_clean_sheets = pd.read_sql(clean_sheet_query, db_connection)
+df_clean_sheets = conn.query(clean_sheet_query, ttl=600)
 
 # 5. Most Red Cards
 red_card_query = f"""
 SELECT team as "Team", COUNT(*) as reds
 FROM {PLAYS_TABLE}
-WHERE "playDescription" LIKE 'Red Card%%'
-  AND team IN ({team_filter})
+WHERE "playDescription" LIKE 'Red Card%'
+  {team_filter_clause}
 GROUP BY team
 ORDER BY reds DESC
 LIMIT 1;
 """
-df_red_cards = pd.read_sql(red_card_query, db_connection)
+df_red_cards = conn.query(red_card_query, ttl=600)
 
 # 6. Most Yellow Cards
 yellow_card_query = f"""
 SELECT team as "Team", COUNT(*) as yellows
 FROM {PLAYS_TABLE}
-WHERE "playDescription" LIKE 'Yellow Card%%'
-  AND team IN ({team_filter})
+WHERE "playDescription" LIKE 'Yellow Card%'
+  {team_filter_clause}
 GROUP BY team
 ORDER BY yellows DESC
 LIMIT 1;
 """
-df_yellow_cards = pd.read_sql(yellow_card_query, db_connection)
+df_yellow_cards = conn.query(yellow_card_query, ttl=600)
 
 # --- DISPLAY ROW 1 (OFFENSE) ---
 col1, col2, col3 = st.columns(3)
@@ -189,16 +186,16 @@ with col6:
 stoppage_time_query = f"""
 SELECT team, COUNT(*) as stoppage_time_goals
 FROM {PLAYS_TABLE}
-WHERE ("playDescription" LIKE 'Goal%%' OR "playDescription" LIKE 'Penalty - Scored')
-  AND ("clockDisplayValue" LIKE '90%%') 
-  AND team IN ({team_filter})
+WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" LIKE 'Penalty - Scored')
+  AND ("clockDisplayValue" LIKE '90%') 
+  {team_filter_clause}
 GROUP BY team
 ORDER BY stoppage_time_goals DESC
 LIMIT 10;
 """
 
 st.header("Most Stoppage Time Goals")
-df_stoppage = pd.read_sql(stoppage_time_query, db_connection)
+df_stoppage = conn.query(stoppage_time_query, ttl=600)
 
 if not df_stoppage.empty:
     fig = px.bar(
@@ -227,8 +224,8 @@ decisive_goals_query = f"""
 WITH Total_Goals AS (
     SELECT "participant", COUNT(*) as total_goals
     FROM {PLAYS_TABLE}
-    WHERE ("playDescription" LIKE 'Goal%%' OR "playDescription" = 'Penalty - Scored')
-      AND team IN ({team_filter})
+    WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" = 'Penalty - Scored')
+      {team_filter_clause}
     GROUP BY "participant"
 ),
 Goal_Context AS (
@@ -242,8 +239,8 @@ Goal_Context AS (
         COALESCE(SUM(CASE WHEN p.team = m."AwayTeam" THEN 1 ELSE 0 END) OVER (PARTITION BY p."eventId" ORDER BY p."playId" ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS Away_Pre
     FROM {PLAYS_TABLE} p
              JOIN {MATCHES_TABLE} m ON p."eventId" = m."eventId"
-    WHERE (p."playDescription" LIKE 'Goal%%' OR p."playDescription" = 'Penalty - Scored')
-      AND p.team IN ({team_filter})
+    WHERE (p."playDescription" LIKE 'Goal%' OR p."playDescription" = 'Penalty - Scored')
+      {team_filter_clause}
 ),
 Decisive_Stats AS (
     SELECT
@@ -268,7 +265,7 @@ ORDER BY d."Decisive_Goals" DESC
 LIMIT 15;
 """
 
-df_decisive = pd.read_sql(decisive_goals_query, db_connection)
+df_decisive = conn.query(decisive_goals_query, ttl=600)
 
 if not df_decisive.empty:
     df_decisive['jitter_total'] = df_decisive['Total_Goals'] + np.random.uniform(-0.15, 0.15, size=len(df_decisive))
@@ -305,11 +302,13 @@ goal_contribution_query = f"""
 WITH Combined_Stats AS (
     SELECT "participant" AS Player, team, 1 AS Goals, 0 AS Assists
     FROM {PLAYS_TABLE}
-    WHERE ("playDescription" LIKE 'Goal%%' OR "playDescription" = 'Penalty - Scored') AND team IN ({team_filter})
+    WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" = 'Penalty - Scored') 
+    {team_filter_clause}
     UNION ALL
     SELECT "Assister" AS Player, team, 0 AS Goals, 1 AS Assists
     FROM {PLAYS_TABLE}
-    WHERE ("playDescription" LIKE 'Goal%%' OR "playDescription" = 'Penalty - Scored') AND "Assister" IS NOT NULL AND team IN ({team_filter})
+    WHERE ("playDescription" LIKE 'Goal%' OR "playDescription" = 'Penalty - Scored') AND "Assister" IS NOT NULL 
+    {team_filter_clause}
 ),
 Aggregated_Stats AS (
      SELECT team, Player, SUM(Goals) AS "Total_Goals", SUM(Assists) AS "Total_Assists", SUM(Goals + Assists) AS Total_Involvements, SUM(SUM(Goals)) OVER (PARTITION BY team) AS Team_Goals_Count
@@ -319,7 +318,7 @@ SELECT team, Player AS "MVP", "Total_Goals", "Total_Assists", Total_Involvements
 FROM Aggregated_Stats ORDER BY "Total_G+A" DESC LIMIT 10;
 """
 
-df_goalcontribution = pd.read_sql(goal_contribution_query, db_connection)
+df_goalcontribution = conn.query(goal_contribution_query, ttl=600)
 
 if not df_goalcontribution.empty:
     fig = px.bar(
@@ -346,15 +345,15 @@ super_sub_query = f"""
 SELECT s."participant" AS "Super_Sub_Name", s.team, COUNT(g."eventId") AS "Goals_From_Bench"
 FROM {PLAYS_TABLE} s 
 JOIN {PLAYS_TABLE} g ON s."eventId" = g."eventId" AND s."participant" = g."participant"
-WHERE s."playDescription" LIKE '%%Substitution%%'
-  AND (g."playDescription" LIKE 'Goal%%' OR g."playDescription" = 'Penalty - Scored')
+WHERE s."playDescription" LIKE '%Substitution%'
+  AND (g."playDescription" LIKE 'Goal%' OR g."playDescription" = 'Penalty - Scored')
   AND g."playId" > s."playId"
-  AND s.team IN ({team_filter})
+  {team_filter_clause}
 GROUP BY s."participant", s.team
 ORDER BY "Goals_From_Bench" DESC LIMIT 10;
 """
 
-df_supersub = pd.read_sql(super_sub_query, db_connection)
+df_supersub = conn.query(super_sub_query, ttl=600)
 
 if not df_supersub.empty:
     top_sub = df_supersub.iloc[0]
@@ -387,18 +386,18 @@ st.header("Discipline Overview")
 discipline_query = f""" 
 SELECT team,
     CASE 
-        WHEN "playDescription" LIKE 'Yellow Card%%' THEN 'Yellow Card'
-        WHEN "playDescription" LIKE 'Red Card%%' THEN 'Red Card'
+        WHEN "playDescription" LIKE 'Yellow Card%' THEN 'Yellow Card'
+        WHEN "playDescription" LIKE 'Red Card%' THEN 'Red Card'
     END as card_type,
     COUNT(*) as count
 FROM {PLAYS_TABLE}
-WHERE ("playDescription" LIKE 'Yellow Card%%' OR "playDescription" LIKE 'Red Card%%')
-  AND team IN ({team_filter})
+WHERE ("playDescription" LIKE 'Yellow Card%' OR "playDescription" LIKE 'Red Card%')
+  {team_filter_clause}
 GROUP BY team, card_type
 ORDER BY count DESC;
 """
 
-df_discipline = pd.read_sql(discipline_query, db_connection)
+df_discipline = conn.query(discipline_query, ttl=600)
 
 if not df_discipline.empty:
     fig = px.bar(
